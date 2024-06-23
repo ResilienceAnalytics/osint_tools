@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Results</title>
+</head>
+<body>
+    <h1>Search Results</h1>
+    <ul>
+        {% for result in results %}
+            <li>
+                URL: {{ result._source.page_url }} - Email: {{ result._source.email }}
+                <ul>
+                    <li><strong>Entities:</strong>
+                        <ul>
+                            {% for entity, label in result._source.entities %}
+                                <li>{{ entity }} ({{ label }})</li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                    <li><strong>Sentiment:</strong>
+                        <ul>
+                            <li>Polarity: {{ result._source.sentiment.polarity }}</li>
+                            <li>Subjectivity: {{ result._source.sentiment.subjectivity }}</li>
+                        </ul>
+                    </li>
+                    <li><strong>Summary:</strong> {{ result._source.summary }}</li>
+                </ul>
+            </li>
+        {% endfor %}
+    </ul>
+    <h2>Breaches</h2>
+    {% if breaches %}
+        <ul>
+            {% for breach in breaches %}
+                <li>{{ breach.Name }} - {{ breach.Title }} - {{ breach.Domain }} - {{ breach.BreachDate }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No breaches found.</p>
+    {% endif %}
+    <h2>Relationship Graph</h2>
+    <img src="{{ graph_image }}" alt="Relationship Graph">
+    <a href="/search_email">New Search</a>
+</body>
+</html>

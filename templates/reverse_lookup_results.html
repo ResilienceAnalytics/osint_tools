@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Reverse Lookup Results</title>
+</head>
+<body>
+    <h1>Reverse Lookup Results</h1>
+
+    <h2>Pipl Results</h2>
+    <pre>{{ pipl_results | tojson(indent=2) }}</pre>
+
+    <h2>FullContact Results</h2>
+    <pre>{{ fullcontact_results | tojson(indent=2) }}</pre>
+
+    {% if hibp_results %}
+    <h2>Have I Been Pwned Results</h2>
+    <pre>{{ hibp_results | tojson(indent=2) }}</pre>
+    {% endif %}
+
+    <h2>Generate Summary</h2>
+    <form method="post" action="/generate_summary">
+        <textarea name="text" rows="10" cols="50"></textarea><br>
+        <input type="submit" value="Generate Summary">
+    </form>
+
+    <h2>Generate Analysis</h2>
+    <form method="post" action="/generate_analysis">
+        <input type="hidden" name="pipl_results" value="{{ pipl_results }}">
+        <input type="hidden" name="fullcontact_results" value="{{ fullcontact_results }}">
+        {% if hibp_results %}
+        <input type="hidden" name="hibp_results" value="{{ hibp_results }}">
+        {% endif %}
+        <input type="submit" value="Generate Analysis">
+    </form>
+
+    <h2>Search Wayback Machine</h2>
+    <form method="post" action="/search_wayback">
+        URL: <input type="text" name="url"><br>
+        <input type="submit" value="Search Wayback Machine">
+    </form>
+
+    <a href="/reverse_lookup">New Lookup</a>
+</body>
+</html>

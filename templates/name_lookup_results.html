@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Name Lookup Results</title>
+</head>
+<body>
+    <h1>Name Lookup Results</h1>
+
+    <h2>Pipl Results</h2>
+    <pre>{{ pipl_results | tojson(indent=2) }}</pre>
+
+    <h2>FullContact Results</h2>
+    <pre>{{ fullcontact_results | tojson(indent=2) }}</pre>
+
+    <a href="/search_name">New Lookup</a>
+</body>
+</html>

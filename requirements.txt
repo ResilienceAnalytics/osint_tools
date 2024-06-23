@@ -1,0 +1,13 @@
+Flask
+elasticsearch
+requests
+spacy
+textblob
+googletrans==4.0.0-rc1
+redis
+rq
+scrapy
+neo4j
+networkx
+matplotlib
+openai
