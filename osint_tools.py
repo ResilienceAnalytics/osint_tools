@@ -1,3 +1,4 @@
+import openai
 import requests
 import spacy
 from textblob import TextBlob
@@ -6,9 +7,10 @@ from elasticsearch import Elasticsearch
 from neo4j import GraphDatabase
 import networkx as nx
 import matplotlib.pyplot as plt
-import openai
 from google.cloud import vision
 from google.cloud.vision_v1 import types
+from PIL import Image
+import argparse
 
 # Configure OpenAI API key
 openai.api_key = 'YOUR_OPENAI_API_KEY'
@@ -17,84 +19,64 @@ openai.api_key = 'YOUR_OPENAI_API_KEY'
 nlp = spacy.load("en_core_web_sm")
 
 def reverse_lookup_pipl(name, api_key):
-    """
-    Perform a reverse lookup using the Pipl API.
-
-    :param name: Name to lookup
-    :param api_key: Pipl API key
-    :return: JSON response from Pipl API
-    """
-    url = f"https://api.pipl.com/search/?key={api_key}&name={name}"
-    response = requests.get(url)
-    return response.json()
+    try:
+        url = f"https://api.pipl.com/search/?key={api_key}&name={name}"
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error during Pipl API request: {e}")
+        return None
 
 def reverse_lookup_fullcontact(name, api_key):
-    """
-    Perform a reverse lookup using the FullContact API.
-
-    :param name: Name to lookup
-    :param api_key: FullContact API key
-    :return: JSON response from FullContact API
-    """
-    headers = {
-        'Authorization': f'Bearer {api_key}'
-    }
-    url = f"https://api.fullcontact.com/v3/person.enrich?name={name}"
-    response = requests.post(url, headers=headers)
-    return response.json()
+    try:
+        headers = {
+            'Authorization': f'Bearer {api_key}'
+        }
+        url = f"https://api.fullcontact.com/v3/person.enrich?name={name}"
+        response = requests.post(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error during FullContact API request: {e}")
+        return None
 
 def recognize_image(image_path):
-    """
-    Recognize text and objects in an image using Google Cloud Vision API.
-
-    :param image_path: Path to the image file
-    :return: JSON response from Google Cloud Vision API
-    """
-    client = vision.ImageAnnotatorClient()
-    with open(image_path, 'rb') as image_file:
-        content = image_file.read()
-    image = types.Image(content=content)
-    response = client.annotate_image({
-        'image': image,
-        'features': [{'type': vision.enums.Feature.Type.TEXT_DETECTION},
-                     {'type': vision.enums.Feature.Type.LABEL_DETECTION}],
-    })
-    return response
+    try:
+        client = vision.ImageAnnotatorClient()
+        with open(image_path, 'rb') as image_file:
+            content = image_file.read()
+        image = types.Image(content=content)
+        response = client.annotate_image({
+            'image': image,
+            'features': [{'type': vision.enums.Feature.Type.TEXT_DETECTION},
+                         {'type': vision.enums.Feature.Type.LABEL_DETECTION}],
+        })
+        return response
+    except Exception as e:
+        print(f"Error during image recognition: {e}")
+        return None
 
 def check_haveibeenpwned(email, api_key):
-    """
-    Check if an email has been compromised in data breaches using the Have I Been Pwned API.
-
-    :param email: Email address to check
-    :param api_key: Have I Been Pwned API key
-    :return: JSON response from Have I Been Pwned API or None if no breach found
-    """
-    url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
-    headers = {
-        'hibp-api-key': api_key,
-        'User-Agent': 'Python Script'
-    }
-    response = requests.get(url, headers=headers)
-    return response.json() if response.status_code == 200 else None
+    try:
+        url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
+        headers = {
+            'hibp-api-key': api_key,
+            'User-Agent': 'Python Script'
+        }
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json() if response.status_code == 200 else None
+    except requests.exceptions.RequestException as e:
+        print(f"Error during Have I Been Pwned API request: {e}")
+        return None
 
 def extract_entities(text):
-    """
-    Extract named entities from a text using spaCy.
-
-    :param text: Text to analyze
-    :return: List of tuples containing entities and their labels
-    """
     doc = nlp(text)
     entities = [(ent.text, ent.label_) for ent in doc.ents]
     return entities
 
 def analyze_sentiment(text):
-    """
-    Analyze the sentiment of a text using TextBlob.
-
-    :param text: Text to analyze
-    :return: Dictionary with polarity and subjectivity scores
-    """
     blob = TextBlob(text)
     sentiment = {
         'polarity': blob.sentiment.polarity,
@@ -103,42 +85,26 @@ def analyze_sentiment(text):
     return sentiment
 
 def generate_summary(text):
-    """
-    Generate a summary of a text using GPT-4 (OpenAI API).
-
-    :param text: Text to summarize
-    :return: Summary of the text
-    """
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=f"Summarize the following text:\n\n{text}",
-        max_tokens=150,
-        n=1,
-        stop=None,
-        temperature=0.7,
-    )
-    summary = response.choices[0].text.strip()
-    return summary
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Summarize the following text."},
+                {"role": "user", "content": text}
+            ]
+        )
+        summary = response['choices'][0]['message']['content'].strip()
+        return summary
+    except openai.error.OpenAIError as e:
+        print(f"Error during summary generation: {e}")
+        return None
 
 def translate_text(text, dest='en'):
-    """
-    Translate a text to a specified language using Google Translate.
-
-    :param text: Text to translate
-    :param dest: Destination language code (default: 'en')
-    :return: Translated text
-    """
     translator = Translator()
     translated = translator.translate(text, dest=dest)
     return translated.text
 
 def create_relationship_graph(data):
-    """
-    Create a relationship graph from the data.
-
-    :param data: Data containing relationships
-    :return: NetworkX graph object
-    """
     G = nx.Graph()
 
     for record in data:
@@ -158,12 +124,6 @@ def create_relationship_graph(data):
     return G
 
 def visualize_graph(G, filename='static/graph.png'):
-    """
-    Visualize a relationship graph and save it as an image.
-
-    :param G: NetworkX graph object
-    :param filename: Filename to save the image (default: 'static/graph.png')
-    """
     pos = nx.spring_layout(G)
     plt.figure(figsize=(12, 12))
     nx.draw(G, pos, with_labels=True, node_size=5000, node_color='skyblue', font_size=10, font_color='black', font_weight='bold')
@@ -171,26 +131,13 @@ def visualize_graph(G, filename='static/graph.png'):
     plt.close()
 
 class Neo4jClient:
-    """
-    Neo4j client for interacting with a Neo4j database.
-    """
     def __init__(self, uri, user, password):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
 
     def close(self):
-        """
-        Close the Neo4j database connection.
-        """
         self.driver.close()
 
     def create_relationship(self, email, url, entities):
-        """
-        Create a relationship in the Neo4j database.
-
-        :param email: Email address
-        :param url: URL
-        :param entities: List of entities
-        """
         with self.driver.session() as session:
             session.write_transaction(self._create_and_return_relationship, email, url, entities)
 
@@ -209,35 +156,77 @@ class Neo4jClient:
         tx.run(query, email=email, url=url, entities=entities)
 
 def search_wayback_machine(url):
-    """
-    Search the Wayback Machine for archived versions of a URL.
-
-    :param url: URL to search
-    :return: JSON response from Wayback Machine API
-    """
-    api_url = f"http://archive.org/wayback/available?url={url}"
-    response = requests.get(api_url)
-    return response.json()
+    try:
+        api_url = f"http://archive.org/wayback/available?url={url}"
+        response = requests.get(api_url)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error during Wayback Machine search: {e}")
+        return None
 
 def generate_summary_or_analysis(data):
-    """
-    Generate a summary or analysis from the given data using GPT-4 (OpenAI API).
-
-    :param data: Dictionary containing structured data to summarize or analyze
-    :return: Summary or analysis generated by GPT-4
-    """
-    # Format the data into a text prompt
     prompt = "Analyze the following data and provide a summary:\n\n"
     for key, value in data.items():
         prompt += f"{key}: {value}\n"
     
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=150,
-        n=1,
-        stop=None,
-        temperature=0.7,
-    )
-    summary_or_analysis = response.choices[0].text.strip()
-    return summary_or_analysis
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Analyze the following data and provide a summary."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        summary_or_analysis = response['choices'][0]['message']['content'].strip()
+        return summary_or_analysis
+    except openai.error.OpenAIError as e:
+        print(f"Error during summary or analysis generation: {e}")
+        return None
+
+def generate_osint_description(image_path, prompt_type):
+    prompts = {
+        "person": f"You are HAL-GPT, an advanced language model developed by OpenAI, based on the GPT-4 architecture, specializing in OSINT. Analyze the given image and identify and describe in detail the people present. Mention physical characteristics, clothing, accessories, and any distinctive features that could aid in identification. Additionally, specify the context of the scene if possible.",
+        "scene": f"You are HAL-GPT, an advanced language model developed by OpenAI, based on the GPT-4 architecture, with a focus on OSINT and crisis management. Analyze the given image in detail. Describe the environment, objects present, and ongoing activities. Mention any elements that could indicate the location or context of the scene. Include details on weather conditions, time of day, and any indication of the period when the image was taken.",
+        "vehicle": f"You are HAL-GPT, an advanced language model developed by OpenAI, based on the GPT-4 architecture, specializing in OSINT and engineering. Describe in detail the vehicles visible in the given image. Include information on makes, models, colors, and distinctive features. If license plates are visible, transcribe the information and provide details on their format and possible origin.",
+        "object": f"You are HAL-GPT, an advanced language model developed by OpenAI, based on the GPT-4 architecture, with expertise in OSINT and technology. Examine the given image to identify and describe in detail all visible objects and devices. Mention their possible utility, condition (new, worn, damaged), and any distinctive marks or features. Include hypotheses on the usage of these objects in the context of the scene.",
+        "document": f"You are HAL-GPT, an advanced language model developed by OpenAI, based on the GPT-4 architecture, specializing in OSINT and document analysis. Describe in detail all documents, writings, or displays visible in the given image. Transcribe readable text and provide an analysis of its content, format, and possible origin. Mention any seals, logos, or other distinctive elements."
+    }
+
+    prompt = prompts.get(prompt_type, "Invalid prompt type")
+
+    if prompt == "Invalid prompt type":
+        print("Invalid prompt type provided.")
+        return None
+
+    image_context = "Image provided for analysis."
+    final_prompt = f"{prompt} Image Context: {image_context}"
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Generate a detailed OSINT description."},
+                {"role": "user", "content": final_prompt}
+            ]
+        )
+        return response['choices'][0]['message']['content'].strip()
+    except openai.error.OpenAIError as e:
+        print(f"Error during OSINT description generation: {e}")
+        return None
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate OSINT description from an image.")
+    parser.add_argument('image_path', type=str, help="Path to the image file")
+    parser.add_argument('prompt_type', type=str, choices=['person', 'scene', 'vehicle', 'object', 'document'], help="Type of OSINT analysis to be performed")
+
+    args = parser.parse_args()
+
+    description = generate_osint_description(args.image_path, args.prompt_type)
+    if description:
+        print(description)
+    else:
+        print("Failed to generate OSINT description.")
+
+if __name__ == '__main__':
+    main()
